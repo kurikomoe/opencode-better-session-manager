@@ -38,10 +38,10 @@ Active sessions are stored in OpenCode TUI KV storage and restored on startup.
   "plugin": [
     [
       // For use within a single project:
-      // "file://{env:HOME}/.config/opencode/plugins/better-session-manager",
+      "./plugins/better-session-manager",
 
       // For use in the global config file (~/.config/opencode/tui.jsonc):
-      "./plugins/better-session-manager",
+      "file://{env:HOME}/.config/opencode/plugins/better-session-manager",
       {
         "showSessionsKey": "ctrl+o",
         "cycleSessionKey": "ctrl+n",
