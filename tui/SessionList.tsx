@@ -15,6 +15,38 @@ function currentSessionID(api: TuiApi) {
   return typeof sessionID === "string" ? sessionID : undefined
 }
 
+function keybindParts(key: string) {
+  const raw = key.trim().toLowerCase()
+  const parts = raw.split("+").filter(Boolean)
+  const name = parts.at(-1)
+  if (!name || raw === "none") return
+  return {
+    name,
+    ctrl: parts.includes("ctrl"),
+    meta: parts.includes("alt") || parts.includes("meta"),
+    shift: parts.includes("shift"),
+    super: parts.includes("super"),
+  }
+}
+
+function matchKeybind(api: TuiApi, key: string, evt: Parameters<Parameters<typeof useKeyboard>[0]>[0]) {
+  if (api.keybind?.match(key, evt)) return true
+  const parts = keybindParts(key)
+  if (!parts) return false
+  const eventName = evt.name?.toLowerCase()
+  return (
+    eventName === parts.name &&
+    Boolean(evt.ctrl) === parts.ctrl &&
+    Boolean(evt.meta) === parts.meta &&
+    Boolean(evt.shift) === parts.shift &&
+    Boolean(evt.super) === parts.super
+  )
+}
+
+function formatKeybind(api: TuiApi, key: string) {
+  return api.keybind?.print(key) ?? key
+}
+
 export function SessionList(props: { api: TuiApi; config: BetterSessionConfig }) {
   const dimensions = useTerminalDimensions()
   const [sessions, setSessions] = createSignal<SessionInfo[]>([])
@@ -187,8 +219,8 @@ export function SessionList(props: { api: TuiApi; config: BetterSessionConfig })
     }
 
     const action = (() => {
-      if (props.api.keybind.match(props.config.toggleActiveKey, evt)) return toggleSelected
-      if (props.api.keybind.match(props.config.inactiveOthersKey, evt)) return inactiveOthers
+      if (matchKeybind(props.api, props.config.toggleActiveKey, evt)) return toggleSelected
+      if (matchKeybind(props.api, props.config.inactiveOthersKey, evt)) return inactiveOthers
     })()
     if (!action) return
     evt.preventDefault?.()
@@ -203,7 +235,7 @@ export function SessionList(props: { api: TuiApi; config: BetterSessionConfig })
     get title() {
       return busy()
         ? "会话（加载中...）"
-        : `会话（${options().length}）| ${props.api.keybind.print(props.config.toggleActiveKey)} 切换选中 · ${props.api.keybind.print(props.config.inactiveOthersKey)} 仅选中本会话 · ${props.api.keybind.print("ctrl+r")} 重命名会话 · ${props.api.keybind.print("ctrl+d")} 删除会话`;
+        : `会话（${options().length}）| ${formatKeybind(props.api, props.config.toggleActiveKey)} 切换选中 · ${formatKeybind(props.api, props.config.inactiveOthersKey)} 仅选中本会话 · ${formatKeybind(props.api, "ctrl+r")} 重命名会话 · ${formatKeybind(props.api, "ctrl+d")} 删除会话`;
     },
     placeholder: "搜索会话",
     get options() {
@@ -234,4 +266,3 @@ export function SessionList(props: { api: TuiApi; config: BetterSessionConfig })
     },
   })
 }
-

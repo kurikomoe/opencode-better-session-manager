@@ -59,7 +59,7 @@ export type TuiApi = {
       setSize(size: "medium" | "large" | "xlarge"): void
     }
   }
-  keybind: {
+  keybind?: {
     match(key: string, evt: ParsedKey): boolean
     print(key: string): string
   }
@@ -78,4 +78,3 @@ export type TuiApi = {
   // this module flexible for future exports, even if unused for now.
   _typecheck?: BetterSessionConfig | ManualOverrides | SessionInfo
 }
-
