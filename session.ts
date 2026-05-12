@@ -75,7 +75,6 @@ export function parseConfig(options: unknown): BetterSessionConfig {
     listLimit: Math.floor(finiteNumber(input.listLimit, DEFAULT_CONFIG.listLimit, 1)),
     toastMaxSessions: Math.floor(finiteNumber(input.toastMaxSessions, DEFAULT_CONFIG.toastMaxSessions, 1)),
     toastDurationMs: finiteNumber(input.toastDurationMs, DEFAULT_CONFIG.toastDurationMs, 0),
-    enableManualOverride: booleanValue(input.enableManualOverride, DEFAULT_CONFIG.enableManualOverride),
   }
 }
 

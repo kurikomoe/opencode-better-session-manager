@@ -1,3 +1,6 @@
+.output/
+.temp/
+.refs/
 @refs/
 
 # dependencies (bun install)

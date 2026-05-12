@@ -7,33 +7,7 @@
   "diff_style": "auto",
   "mouse": true,
   "keybinds": {
-    "leader": "ctrl+x,ctrl+g",
+    "leader": "ctrl+x",
     "session_list": "<leader>l"
-  },
-  "plugin": [
-    [
-      // For use within a single project:
-      // "file://{env:HOME}/.config/opencode/plugins/better-session-manager",
-
-      // For use in the global config file (~/.config/opencode/tui.jsonc):
-      "./plugins/better-session-manager",
-      {
-        "inactiveAfterMinutes": 2880,
-        "showSessionsKey": "ctrl+o",
-
-        "cycleSessionKey": "ctrl+n",
-
-        "openSessionListKey": "ctrl+l",
-        "inactiveOthersKey": "ctrl+k",
-        "toggleActiveKey": "ctrl+f",
-
-        "includeChildSessions": false,
-        "listLimit": 200,
-        "toastMaxSessions": 8,
-        "toastDurationMs": 6000,
-        "enableManualOverride": true
-      }
-    ]
-  ]
+  }
 }
-
