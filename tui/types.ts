@@ -10,6 +10,15 @@ export type ParsedKey = {
   stopPropagation?: () => void
 }
 
+export type KeybindInfo = {
+  name: string
+  ctrl: boolean
+  meta: boolean
+  shift: boolean
+  super: boolean
+  leader: boolean
+}
+
 export type DialogSelectOption<Value> = {
   title: string
   value: Value
@@ -51,6 +60,12 @@ export type TuiApi = {
       onFilter?: (query: string) => void
       onSelect?: (option: DialogSelectOption<Value>) => void
       current?: Value
+      keybind?: {
+        keybind?: KeybindInfo
+        title: string
+        disabled?: boolean
+        onTrigger: (option: DialogSelectOption<Value>) => void
+      }[]
     }): unknown
     toast(input: { variant?: "info" | "success" | "warning" | "error"; title?: string; message: string; duration?: number }): void
     dialog: {

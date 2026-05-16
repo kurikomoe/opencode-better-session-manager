@@ -1,8 +1,8 @@
-import { batch, createMemo, createSignal, untrack } from "solid-js"
-import { useKeyboard, useTerminalDimensions } from "@opentui/solid"
+import { batch, createMemo, createSignal, onMount, untrack } from "solid-js"
+import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/solid"
 import type { TextareaRenderable } from "@opentui/core"
 import type { BetterSessionConfig, ManualOverrides, SessionInfo } from "../session"
-import { activeSessions, isActiveSession, toggleActiveState, filterSessionScope } from "../session"
+import { activeSessions, isActiveSession, toggleActiveState, normalizeActiveState, filterSessionScope } from "../session"
 import { formatActiveToastMessage } from "../utils/toast"
 import { loadSessions as loadSessionsIO, syncActiveState as syncActiveStateIO } from "../state/sessions"
 import { readActiveState as readActiveStateKV, writeActiveState as writeActiveStateKV } from "../state/active-state"
@@ -15,40 +15,9 @@ function currentSessionID(api: TuiApi) {
   return typeof sessionID === "string" ? sessionID : undefined
 }
 
-function keybindParts(key: string) {
-  const raw = key.trim().toLowerCase()
-  const parts = raw.split("+").filter(Boolean)
-  const name = parts.at(-1)
-  if (!name || raw === "none") return
-  return {
-    name,
-    ctrl: parts.includes("ctrl"),
-    meta: parts.includes("alt") || parts.includes("meta"),
-    shift: parts.includes("shift"),
-    super: parts.includes("super"),
-  }
-}
-
-function matchKeybind(api: TuiApi, key: string, evt: Parameters<Parameters<typeof useKeyboard>[0]>[0]) {
-  if (api.keybind?.match(key, evt)) return true
-  const parts = keybindParts(key)
-  if (!parts) return false
-  const eventName = evt.name?.toLowerCase()
-  return (
-    eventName === parts.name &&
-    Boolean(evt.ctrl) === parts.ctrl &&
-    Boolean(evt.meta) === parts.meta &&
-    Boolean(evt.shift) === parts.shift &&
-    Boolean(evt.super) === parts.super
-  )
-}
-
-function formatKeybind(api: TuiApi, key: string) {
-  return api.keybind?.print(key) ?? key
-}
-
 export function SessionList(props: { api: TuiApi; config: BetterSessionConfig }) {
   const dimensions = useTerminalDimensions()
+  const renderer = useRenderer()
   const [sessions, setSessions] = createSignal<SessionInfo[]>([])
   const [activeState, setActiveState] = createSignal<ManualOverrides>(readActiveStateKV(props.api))
   const [selected, setSelected] = createSignal<string | undefined>(currentSessionID(props.api))
@@ -56,6 +25,16 @@ export function SessionList(props: { api: TuiApi; config: BetterSessionConfig })
   const [busy, setBusy] = createSignal(true)
   const [toDelete, setToDelete] = createSignal<string | undefined>(undefined)
   const options = createMemo(() => sessionOptionsUI(sessions(), activeState(), props.config, toDelete()))
+
+  // DialogSelect auto-focuses its filter input; blur it so ctrl shortcuts work
+  onMount(() => {
+    setTimeout(() => {
+      const focused = renderer.currentFocusedRenderable
+      if (focused && !focused.isDestroyed) {
+        focused.blur()
+      }
+    }, 10)
+  })
 
   const reload = async () => {
     setBusy(true)
@@ -77,9 +56,9 @@ export function SessionList(props: { api: TuiApi; config: BetterSessionConfig })
       .finally(() => setBusy(false))
   }
 
-  const toggleSelected = () => {
+  const toggleSelected = (id?: string) => {
     const preOptions = options()
-    const selectedSessionID = selected()
+    const selectedSessionID = id ?? selected()
     if (!selectedSessionID) {
       props.api.ui.toast({ variant: "warning", message: "[debug] selected() 为空", duration: 4000 })
       return
@@ -112,11 +91,8 @@ export function SessionList(props: { api: TuiApi; config: BetterSessionConfig })
       preOptions[selectedOptionIndex - 1]?.value ??
       selectedSessionID
 
-    const wasActive = preActiveState[selectedSession.id]
-    const nextActiveState = {
-      ...preActiveState,
-      [selectedSession.id]: !wasActive,
-    }
+    const wasActive = preActiveState[selectedSession.id] === true
+    const nextActiveState = toggleActiveState(selectedSession, sessions(), preActiveState)
     const postOptions = sessionOptionsUI(scopedSessions, nextActiveState, props.config, toDelete())
     const nextSelectedID =
       postOptions.find((item) => item.value === nextCandidateID)?.value ??
@@ -145,13 +121,17 @@ export function SessionList(props: { api: TuiApi; config: BetterSessionConfig })
     })
   }
 
-  const inactiveOthers = () => {
+  const inactiveOthers = (id?: string) => {
     const preOptions = options()
-    const sessionID = selected() ?? preOptions[0]?.value
+    const sessionID = id ?? selected() ?? preOptions[0]?.value
     const session = sessions().find((item) => item.id === sessionID)
     if (!session) return
     setToDelete(undefined)
-    const next = Object.fromEntries(filterSessionScope(sessions(), props.config.includeChildSessions).map((item) => [item.id, item.id === session.id]))
+    const next = normalizeActiveState(
+      sessions(),
+      Object.fromEntries(filterSessionScope(sessions(), props.config.includeChildSessions).map((item) => [item.id, item.id === session.id])),
+      { fallbackToLatest: false },
+    )
     writeActiveStateKV(props.api, next)
     setSelected(undefined)
     batch(() => {
@@ -218,14 +198,19 @@ export function SessionList(props: { api: TuiApi; config: BetterSessionConfig })
       return
     }
 
-    const action = (() => {
-      if (matchKeybind(props.api, props.config.toggleActiveKey, evt)) return toggleSelected
-      if (matchKeybind(props.api, props.config.inactiveOthersKey, evt)) return inactiveOthers
-    })()
-    if (!action) return
-    evt.preventDefault?.()
-    evt.stopPropagation?.()
-    action()
+    if (evt.ctrl && keyName === "f") {
+      evt.preventDefault?.()
+      evt.stopPropagation?.()
+      toggleSelected()
+      return
+    }
+
+    if (evt.ctrl && keyName === "k") {
+      evt.preventDefault?.()
+      evt.stopPropagation?.()
+      inactiveOthers()
+      return
+    }
   })
 
   props.api.ui.dialog.setSize(untrack(() => (dimensions().width >= 120 ? "xlarge" : "large")))
@@ -235,7 +220,7 @@ export function SessionList(props: { api: TuiApi; config: BetterSessionConfig })
     get title() {
       return busy()
         ? "会话（加载中...）"
-        : `会话（${options().length}）| ${formatKeybind(props.api, props.config.toggleActiveKey)} 切换选中 · ${formatKeybind(props.api, props.config.inactiveOthersKey)} 仅选中本会话 · ${formatKeybind(props.api, "ctrl+r")} 重命名会话 · ${formatKeybind(props.api, "ctrl+d")} 删除会话`;
+        : `会话（${options().length}）| ctrl+f 切换选中 · ctrl+k 仅选中本会话 · ctrl+r 重命名会话 · ctrl+d 删除会话`;
     },
     placeholder: "搜索会话",
     get options() {
